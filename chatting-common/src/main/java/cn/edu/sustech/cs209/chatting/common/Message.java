@@ -3,6 +3,7 @@ package cn.edu.sustech.cs209.chatting.common;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+@SuppressWarnings({"checkstyle:Indentation", "checkstyle:MissingJavadocMethod"})
 public class Message implements Serializable {
 
     private Long timestamp;
@@ -15,6 +16,7 @@ public class Message implements Serializable {
 
     private MessageType type = MessageType.SYSTEM;
 
+    //chat message
     public Message(Long timestamp, User sentBy, User sendTo, String data, MessageType type) {
         this.timestamp = timestamp;
         this.sentBy = sentBy;
@@ -23,10 +25,16 @@ public class Message implements Serializable {
         this.type = type;
     }
 
+    //system messages
     public Message(User sender, String content) {
         this.sentBy = sender;
         this.data = content;
     }
+
+    public Message(String content) {
+        this.data = content;
+    }
+
     public Long getTimestamp() {
         return timestamp;
     }
@@ -45,5 +53,14 @@ public class Message implements Serializable {
 
     public MessageType getType(){
         return type;
+    }
+
+    public String toString() {
+        return "Msg{" +
+                "time='" + timestamp + '\'' +
+                "sendBy='" + sentBy.getUsername() + '\'' +
+                "sendTo='" + sendTo.getUsername() + '\'' +
+                "type='" + type + '\'' +
+                '}';
     }
 }

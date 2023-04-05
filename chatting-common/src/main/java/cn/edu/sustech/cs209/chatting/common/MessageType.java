@@ -1,8 +1,12 @@
 package cn.edu.sustech.cs209.chatting.common;
 
-public enum MessageType {
+import java.io.Serializable;
+
+public enum MessageType implements Serializable {
     CONNECT,
     MESSAGE,
     DISCONNECT,
     SYSTEM,
 }
+
+

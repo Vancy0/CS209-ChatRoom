@@ -1,8 +1,6 @@
 package cn.edu.sustech.cs209.chatting.client;
 
-import cn.edu.sustech.cs209.chatting.common.Message;
-import cn.edu.sustech.cs209.chatting.common.Chat;
-import cn.edu.sustech.cs209.chatting.common.User;
+import cn.edu.sustech.cs209.chatting.common.*;
 import cn.edu.sustech.cs209.chatting.server.ChatServer;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
@@ -16,6 +14,8 @@ import javafx.stage.Stage;
 import javafx.util.Callback;
 
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.URL;
 import java.util.List;
@@ -24,13 +24,15 @@ import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.concurrent.atomic.AtomicReference;
 
+@SuppressWarnings({"checkstyle:MissingJavadocType", "checkstyle:Indentation"})
 public class Controller implements Initializable {
-
     @FXML
     ListView<Message> chatContentList;
-
     String username;
     Socket socket;
+    ObjectOutputStream out;
+    ObjectInputStream in;
+
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
 
@@ -39,51 +41,82 @@ public class Controller implements Initializable {
         dialog.setHeaderText(null);
         dialog.setContentText("Username:");
 
-        /*Optional<String> input = dialog.showAndWait();
-        if (input.isPresent() && !input.get().isEmpty()) {
+        /*TODO: Check if there is a user with the same name among the currently logged-in users,
+                     if so, ask the user to change the username*/
 
-               *//*TODO: Check if there is a user with the same name among the currently logged-in users,
-                     if so, ask the user to change the username*//*
-
-            username = input.get();
-
-        } else {
-            System.out.println("Invalid username " + input + ", exiting");
-            Platform.exit();
-        }*/
         Optional<String> input = dialog.showAndWait();
         if (input.isPresent() && !input.get().isEmpty()) {
-            // Check if there is a user with the same name among the currently logged-in users
-            boolean nameExists = false;
-            // TODO: get the list of currently logged-in users from the server
-            List<User> loggedInUsers = ChatServer.getLoggedInUsers();
-            for (User user : loggedInUsers) {
-                if (user.getUsername().equals(input.get())) {
-                    nameExists = true;
-                    break;
-                }
+            try {
+                socket = new Socket("localhost", 8888);
+                System.out.println("Connecting");
+                this.out = new ObjectOutputStream(socket.getOutputStream());
+                this.in = new ObjectInputStream(socket.getInputStream());
+                username = login(input, url, resourceBundle);
+
+
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
             }
-            if (nameExists) {
-                Alert alert = new Alert(Alert.AlertType.WARNING);
-                alert.setTitle("Warning");
-                alert.setHeaderText(null);
-                alert.setContentText("The username " + input.get() + " already exists, please choose a different name.");
-                alert.showAndWait();
-                initialize(url, resourceBundle);
-            } else {
-                username = input.get();
-                try {
-                    socket = new Socket("localhost", 8888);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+
         } else {
             System.out.println("Invalid username " + input + ", exiting");
             Platform.exit();
         }
 
         chatContentList.setCellFactory(new MessageCellFactory());
+    }
+
+    public String login(Optional<String> input, URL url,
+                        ResourceBundle resourceBundle) throws IOException, ClassNotFoundException {
+        boolean nameExists = checkDupName(input);
+        String userName = handleLoginException(nameExists, input, url, resourceBundle);
+        if (userName != null) {
+            addListRequest(userName);
+        }
+        return userName;
+    }
+
+    public void addListRequest(String userName) throws IOException, ClassNotFoundException {
+        System.out.println("Send request for adding current login user to list");
+        Message login = new Message(new User(userName), Constants.LOGIN_MESSAGE);
+        sendSystemMessage(login);
+    }
+
+    public boolean checkDupName(Optional<String> input) throws IOException, ClassNotFoundException {
+        System.out.println("Check if there is a user with the same name");
+        Message getList = new Message(Constants.GET_USER_LIST);
+        Message repeat = sendSystemMessage(getList);
+        String[] loggedInUsers = repeat.getData().split(",");
+        boolean nameExists = false;
+        for (String user : loggedInUsers) {
+            if (user.equals(input.get())) {
+                nameExists = true;
+                break;
+            }
+        }
+        return nameExists;
+    }
+
+    public String handleLoginException(boolean nameExists, Optional<String> input,
+                                       URL url, ResourceBundle resourceBundle) {
+        if (nameExists) {
+            System.out.println("Duplicate username! Please retry!");
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Warning");
+            alert.setHeaderText(null);
+            alert.setContentText("The username " + input.get() + " already exists, please choose a different name.");
+            alert.showAndWait();
+            initialize(url, resourceBundle);
+        } else {
+            return input.get();
+        }
+        return null;
+    }
+
+    private Message sendSystemMessage(Message msg) throws IOException, ClassNotFoundException {
+        out.writeObject(msg);
+        out.flush();
+        return (Message) in.readObject();
     }
 
 
