@@ -4,4 +4,5 @@ public enum MessageType {
     CONNECT,
     MESSAGE,
     DISCONNECT,
+    SYSTEM,
 }

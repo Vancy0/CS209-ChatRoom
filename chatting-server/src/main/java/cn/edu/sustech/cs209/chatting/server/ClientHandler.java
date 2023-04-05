@@ -1,4 +1,5 @@
 package cn.edu.sustech.cs209.chatting.server;
+
 import cn.edu.sustech.cs209.chatting.common.*;
 
 import java.io.IOException;
@@ -30,19 +31,7 @@ public class ClientHandler implements Runnable {
         try {
             Message msg;
             while ((msg = (Message) input.readObject()) != null) {
-                switch (msg.getType()) {
-                    case CONNECT:
-                        handleConnectMessage(msg);
-                        break;
-                    case MESSAGE:
-                        handleMessageMessage(msg);
-                        break;
-                    case DISCONNECT:
-                        handleDisconnectMessage(msg);
-                        break;
-                    default:
-                        break;
-                }
+                handleMessage(msg);
             }
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
@@ -55,6 +44,22 @@ public class ClientHandler implements Runnable {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    public void handleMessage(Message msg) throws IOException {
+        switch (msg.getType()) {
+            case CONNECT:
+                handleConnectMessage(msg);
+                break;
+            case MESSAGE:
+                handleMessageMessage(msg);
+                break;
+            case DISCONNECT:
+                handleDisconnectMessage(msg);
+                break;
+            default:
+                break;
         }
     }
 

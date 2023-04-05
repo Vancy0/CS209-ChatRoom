@@ -1,8 +1,9 @@
 package cn.edu.sustech.cs209.chatting.common;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
-public class Message {
+public class Message implements Serializable {
 
     private Long timestamp;
 
@@ -12,13 +13,14 @@ public class Message {
 
     private String data;
 
-    private MessageType type;
+    private MessageType type = MessageType.SYSTEM;
 
-    public Message(Long timestamp, User sentBy, User sendTo, String data) {
+    public Message(Long timestamp, User sentBy, User sendTo, String data, MessageType type) {
         this.timestamp = timestamp;
         this.sentBy = sentBy;
         this.sendTo = sendTo;
         this.data = data;
+        this.type = type;
     }
 
     public Message(User sender, String content) {

@@ -13,14 +13,12 @@ public class ChatServer {
     private int port;
     private ServerSocket serverSocket;
     private List<ClientHandler> clientHandlers;
-    private List<User> userList;
+    private static final List<User> userList = new ArrayList<>();
 
     public ChatServer(int port) {
         this.port = port;
         this.clientHandlers = new ArrayList<>();
-        this.userList = new ArrayList<>();
     }
-
     public void start() {
         try {
             serverSocket = new ServerSocket(port);
@@ -34,6 +32,9 @@ public class ChatServer {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void sendOne(Message msg) {
     }
 
     public synchronized void broadcast(Message message) throws IOException {
@@ -51,10 +52,9 @@ public class ChatServer {
         userList.remove(user);
     }
 
-    public List<User> getUserList() {
+    public static List<User> getLoggedInUsers(){
         return userList;
     }
 
-    public void sendOne(Message msg) {
-    }
+
 }

@@ -2,6 +2,8 @@ package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.Message;
 import cn.edu.sustech.cs209.chatting.common.Chat;
+import cn.edu.sustech.cs209.chatting.common.User;
+import cn.edu.sustech.cs209.chatting.server.ChatServer;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -13,7 +15,10 @@ import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
 import javafx.util.Callback;
 
+import java.io.IOException;
+import java.net.Socket;
 import java.net.URL;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.ResourceBundle;
@@ -25,7 +30,7 @@ public class Controller implements Initializable {
     ListView<Message> chatContentList;
 
     String username;
-
+    Socket socket;
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
 
@@ -36,11 +41,12 @@ public class Controller implements Initializable {
 
         /*Optional<String> input = dialog.showAndWait();
         if (input.isPresent() && !input.get().isEmpty()) {
-            *//*
-               TODO: Check if there is a user with the same name among the currently logged-in users,
-                     if so, ask the user to change the username
-             *//*
+
+               *//*TODO: Check if there is a user with the same name among the currently logged-in users,
+                     if so, ask the user to change the username*//*
+
             username = input.get();
+
         } else {
             System.out.println("Invalid username " + input + ", exiting");
             Platform.exit();
@@ -50,9 +56,9 @@ public class Controller implements Initializable {
             // Check if there is a user with the same name among the currently logged-in users
             boolean nameExists = false;
             // TODO: get the list of currently logged-in users from the server
-            // for example: List<String> loggedInUsers = ChatServer.getLoggedInUsers();
-            for (String user : loggedInUsers) {
-                if (user.equals(input.get())) {
+            List<User> loggedInUsers = ChatServer.getLoggedInUsers();
+            for (User user : loggedInUsers) {
+                if (user.getUsername().equals(input.get())) {
                     nameExists = true;
                     break;
                 }
@@ -66,6 +72,11 @@ public class Controller implements Initializable {
                 initialize(url, resourceBundle);
             } else {
                 username = input.get();
+                try {
+                    socket = new Socket("localhost", 8888);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         } else {
             System.out.println("Invalid username " + input + ", exiting");
@@ -74,6 +85,7 @@ public class Controller implements Initializable {
 
         chatContentList.setCellFactory(new MessageCellFactory());
     }
+
 
     @FXML
     public void createPrivateChat() {
@@ -100,9 +112,9 @@ public class Controller implements Initializable {
 
         // TODO: if the current user already chatted with the selected user, just open the chat with that user
         // TODO: otherwise, create a new chat item in the left panel, the title should be the selected user's name
-        // Check if there is already a chat with the selected user
+        /*// Check if there is already a chat with the selected user
         // TODO: get the list of chats from the server or local storage
-        // for example: List<Chat> chats = ChatClient.getChats();
+        List<Chat> chats = ChatClient.getChats();
         Optional<Chat> existingChat = chats.stream()
                 .filter(chat -> chat.getParticipants().contains(user.get()))
                 .findFirst();
@@ -117,8 +129,7 @@ public class Controller implements Initializable {
             // for example: chats.add(newChat);
             // TODO: update the chat list view in the UI
             // for example: chatList.getItems().add(newChat);
-        }
-
+        }*/
     }
 
     /**
@@ -143,7 +154,7 @@ public class Controller implements Initializable {
      */
     @FXML
     public void doSendMessage() {
-        // Get the currently selected chat
+        /*// Get the currently selected chat
         Chat selectedChat = chatList.getSelectionModel().getSelectedItem();
         if (selectedChat == null) {
             return;
@@ -165,7 +176,7 @@ public class Controller implements Initializable {
         // for example: chatContentList.getItems().setAll(selectedChat.getMessages());
 
         // Clear the input field
-        messageInput.clear();
+        messageInput.clear();*/
     }
 
     /**
