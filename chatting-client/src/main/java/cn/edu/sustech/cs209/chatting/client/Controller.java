@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public class Controller implements Initializable {
     @FXML
     ListView<Message> chatContentList;
+    @FXML
+    private Label currentUsername;
     String username;
     Socket socket;
     ObjectOutputStream out;
@@ -52,7 +54,7 @@ public class Controller implements Initializable {
                 this.out = new ObjectOutputStream(socket.getOutputStream());
                 this.in = new ObjectInputStream(socket.getInputStream());
                 username = login(input, url, resourceBundle);
-
+                setUsername(username);
 
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
@@ -119,7 +121,9 @@ public class Controller implements Initializable {
         return (Message) in.readObject();
     }
 
-
+    public void setUsername(String username) {
+        currentUsername.setText("Current User: " + username);
+    }
     @FXML
     public void createPrivateChat() {
         AtomicReference<String> user = new AtomicReference<>();
