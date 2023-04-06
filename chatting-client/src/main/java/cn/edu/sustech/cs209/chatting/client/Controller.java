@@ -2,6 +2,7 @@ package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.*;
 import cn.edu.sustech.cs209.chatting.server.ChatServer;
+import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -18,10 +19,13 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.URL;
+import java.sql.SQLOutput;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings({"checkstyle:MissingJavadocType", "checkstyle:Indentation"})
@@ -30,6 +34,9 @@ public class Controller implements Initializable {
     ListView<Message> chatContentList;
     @FXML
     private Label currentUsername;
+    @FXML
+    private Label currentOnlineCnt;
+    private BlockingQueue<Message> messageQueue = new LinkedBlockingQueue<>();
     String username;
     Socket socket;
     ObjectOutputStream out;
@@ -43,29 +50,109 @@ public class Controller implements Initializable {
         dialog.setHeaderText(null);
         dialog.setContentText("Username:");
 
-        /*TODO: Check if there is a user with the same name among the currently logged-in users,
-                     if so, ask the user to change the username*/
-
+        //login module
         Optional<String> input = dialog.showAndWait();
         if (input.isPresent() && !input.get().isEmpty()) {
             try {
                 socket = new Socket("localhost", 8888);
-                System.out.println("Connecting");
+                System.out.println("Connecting...");
                 this.out = new ObjectOutputStream(socket.getOutputStream());
                 this.in = new ObjectInputStream(socket.getInputStream());
                 username = login(input, url, resourceBundle);
+                //symbol of connected
                 setUsername(username);
-
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
-
         } else {
             System.out.println("Invalid username " + input + ", exiting");
             Platform.exit();
         }
-
         chatContentList.setCellFactory(new MessageCellFactory());
+
+        //start to receive messages
+        listenForMessages();
+        //update ui
+        updateUi();
+    }
+
+    private void updateUi() {
+        new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                Message msg;
+                while ((msg = messageQueue.poll()) != null) {
+                    try {
+                        // handle received msg
+                        handleMessage(msg);
+                    } catch (IOException | ClassNotFoundException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }.start();
+    }
+
+    private void listenForMessages() {
+        // new Thread to receive messages avoid blocking the main thread
+        new Thread(() -> {
+            while (true) {
+                try {
+                    // Read messages from the server blockingly
+                    Message msg = (Message) in.readObject();
+                    // staging received msg
+                    if (msg != null) {
+                        System.out.println("msg in!!!!");
+                        System.out.println(msg.getType() + " " + msg.getData());
+                        messageQueue.put(msg);
+                    }
+                } catch (IOException | ClassNotFoundException e) {
+                    e.printStackTrace();
+                    break;
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }).start();
+    }
+
+    private void handleMessage(Message msg) throws IOException, ClassNotFoundException {
+        switch (msg.getType()) {
+            case MESSAGE:
+                handleMsgMessage(msg);
+                break;
+            case SYSTEM:
+                handleSystemMessage(msg);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void handleMsgMessage(Message msg) {
+        // Adding messages to the chat content list
+        Platform.runLater(() -> {
+            chatContentList.getItems().add(msg);
+            chatContentList.scrollTo(msg);
+        });
+    }
+
+
+    private void handleSystemMessage(Message msg) throws IOException, ClassNotFoundException {
+        String content = msg.getData();
+        switch (content) {
+            case Constants.UPDATE_USER_LIST:
+                handleSystemUpdateUserList(msg);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void handleSystemUpdateUserList(Message msg) throws IOException, ClassNotFoundException {
+        int size = msg.getExData();
+        setCurrentOnlineCnt(size);
+        System.out.println("Updated current online user!");
     }
 
     public String login(Optional<String> input, URL url,
@@ -96,6 +183,9 @@ public class Controller implements Initializable {
                 break;
             }
         }
+        if (!nameExists && !loggedInUsers[0].equals("")) {
+            setCurrentOnlineCnt(loggedInUsers.length + 1);
+        }
         return nameExists;
     }
 
@@ -121,9 +211,18 @@ public class Controller implements Initializable {
         return (Message) in.readObject();
     }
 
-    public void setUsername(String username) {
-        currentUsername.setText("Current User: " + username);
+    private void setUsername(String username) {
+        if (username != null) {
+            currentUsername.setText("Current User: " + username);
+            System.out.println("User: {" + username + "} Connected!");
+        }
     }
+
+    private void setCurrentOnlineCnt(int size) {
+        String num = Integer.toString(size);
+        currentOnlineCnt.setText("Online: " + num);
+    }
+
     @FXML
     public void createPrivateChat() {
         AtomicReference<String> user = new AtomicReference<>();

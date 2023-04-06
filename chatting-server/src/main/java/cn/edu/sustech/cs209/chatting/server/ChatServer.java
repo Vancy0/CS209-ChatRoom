@@ -49,12 +49,20 @@ public class ChatServer {
         }
     }
 
-    public synchronized void broadcast(Message msg) throws IOException {
+    public void broadcast(Message msg) throws IOException {
         for (ClientHandler client : clientHandlers) {
             client.sendMessage(msg);
         }
     }
 
+    public void broadcast(ClientHandler clientHandler, Message msg) throws IOException {
+        for (ClientHandler client : clientHandlers) {
+            if (client != clientHandler) {
+                System.out.println("broadcast to " + client.getUser().getUsername());
+                client.sendMessage(msg);
+            }
+        }
+    }
     public void removeThread(ClientHandler clientHandler) {
         clientHandlers.remove(clientHandler);
     }

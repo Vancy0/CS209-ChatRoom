@@ -104,16 +104,21 @@ public class ClientHandler implements Runnable {
     private void handleSystemLogin(Message msg) throws IOException {
         User sendBy = msg.getSentBy();
         chatServer.addUser(sendBy);
-        String content = Constants.USER_LIST_ADDED;
-        sendMessage(new Message(content));
+        //after login set the user
+        user = sendBy;
+        sendMessage(new Message(Constants.USER_LIST_ADDED));
         System.out.println("Have sent verification for add list to Client");
+        //broadcast for update number of online user
+        chatServer.broadcast(this, new Message(Constants.UPDATE_USER_LIST,
+                chatServer.getLoggedInUsers().size()));
+        System.out.println("broadcast for update number of online user");
     }
 
     private void handleConnectMessage(Message msg) throws IOException {
         user = msg.getSentBy();
         chatServer.addUser(user);
         sendMessage(new Message(Chat.SERVER_USER, "Welcome to the chat room!"));
-        chatServer.broadcast(new Message(Chat.SERVER_USER, user.getUsername() + " has joined the chat room."));
+        chatServer.broadcast(this, new Message(Chat.SERVER_USER, user.getUsername() + " has joined the chat room."));
     }
 
     private void handleMessageMessage(Message msg) throws IOException {
@@ -126,11 +131,12 @@ public class ClientHandler implements Runnable {
 
     private void handleDisconnectMessage(Message msg) throws IOException {
         chatServer.removeUser(user);
-        chatServer.broadcast(new Message(Chat.SERVER_USER, user.getUsername() + " has left the chat room."));
+        chatServer.broadcast(this, new Message(Chat.SERVER_USER, user.getUsername() + " has left the chat room."));
         sendMessage(new Message(Chat.SERVER_USER, "You have left the chat room."));
     }
 
     public synchronized void sendMessage(Message msg) throws IOException {
+        System.out.println("have send....");
         output.writeObject(msg);
         output.flush();
     }

@@ -14,6 +14,7 @@ public class Message implements Serializable {
 
     private String data;
 
+    private int exData;
     private MessageType type = MessageType.SYSTEM;
 
     //chat message
@@ -35,6 +36,11 @@ public class Message implements Serializable {
         this.data = content;
     }
 
+    public Message(String content, int exData) {
+        this.data = content;
+        this.exData = exData;
+    }
+
     public Long getTimestamp() {
         return timestamp;
     }
@@ -53,6 +59,10 @@ public class Message implements Serializable {
 
     public MessageType getType(){
         return type;
+    }
+
+    public int getExData() {
+        return exData;
     }
 
     public String toString() {
