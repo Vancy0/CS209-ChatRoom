@@ -4,13 +4,24 @@ import cn.edu.sustech.cs209.chatting.common.*;
 import cn.edu.sustech.cs209.chatting.server.ChatServer;
 import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 import javafx.util.Callback;
 
@@ -20,23 +31,28 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.URL;
 import java.sql.SQLOutput;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.ResourceBundle;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 @SuppressWarnings({"checkstyle:MissingJavadocType", "checkstyle:Indentation"})
 public class Controller implements Initializable {
     @FXML
     ListView<Message> chatContentList;
+    ObservableList<Chat> chats = FXCollections.observableArrayList();
+    @FXML
+    private ListView<Chat> chatList = new ListView<>(chats);
+    @FXML
+    public TextArea inputArea;
     @FXML
     private Label currentUsername;
     @FXML
     private Label currentOnlineCnt;
-    private BlockingQueue<Message> messageQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<Message> messageQueue = new LinkedBlockingQueue<>();
+    private final ChatManager chatManager = new ChatManager();
+    private final HashMap<String, User> userList = new HashMap<>();
     String username;
     Socket socket;
     ObjectOutputStream out;
@@ -69,11 +85,35 @@ public class Controller implements Initializable {
             Platform.exit();
         }
         chatContentList.setCellFactory(new MessageCellFactory());
+        chatList.setCellFactory(new ChatListCellFactory());
+        //listener whenever selected chat changed, rerender the content
+        chatList.getSelectionModel().selectedItemProperty()
+                .addListener((observable, oldValue, newValue) -> {
+            if (newValue != null) {
+                // 渲染右侧聊天框中的聊天记录
+                renderChat(newValue);
+            }
+        });
 
-        //start to receive messages
+        // start to receive messages
         listenForMessages();
-        //update ui
+        // update ui
         updateUi();
+    }
+
+    @FXML
+    private void handleChatSelection() {
+        Chat selectedChat = chatList.getSelectionModel().getSelectedItem();
+        // 将selectedChat显示在右边的聊天框中
+        MultipleSelectionModel<Chat> selectionModel = chatList.getSelectionModel();
+        // 选择要显示的Chat对象
+        selectionModel.select(selectedChat);
+    }
+
+    private void renderChat(Chat chat) {
+        List<Message> messageList = chat.getMessages();
+        chatContentList.getItems().clear();
+        chatContentList.getItems().addAll(messageList);
     }
 
     private void updateUi() {
@@ -84,6 +124,7 @@ public class Controller implements Initializable {
                 while ((msg = messageQueue.poll()) != null) {
                     try {
                         // handle received msg
+                        System.out.println("UI update!!!");
                         handleMessage(msg);
                     } catch (IOException | ClassNotFoundException e) {
                         throw new RuntimeException(e);
@@ -102,8 +143,8 @@ public class Controller implements Initializable {
                     Message msg = (Message) in.readObject();
                     // staging received msg
                     if (msg != null) {
-                        System.out.println("msg in!!!!");
-                        System.out.println(msg.getType() + " " + msg.getData());
+                        System.out.println("msg in!!! the type and data is: "
+                                + msg.getType() + " " + msg.getData());
                         messageQueue.put(msg);
                     }
                 } catch (IOException | ClassNotFoundException e) {
@@ -137,11 +178,13 @@ public class Controller implements Initializable {
         });
     }
 
-
     private void handleSystemMessage(Message msg) throws IOException, ClassNotFoundException {
-        String content = msg.getData();
-        switch (content) {
-            case Constants.UPDATE_USER_LIST:
+        int systemType = msg.getSystemType();
+        switch (systemType) {
+            case Constants.REPLAY_ONLINE_USER_NUM:
+                handleSystemUpdateOnlineUser(msg);
+                break;
+            case Constants.REPLAY_USER_LIST:
                 handleSystemUpdateUserList(msg);
                 break;
             default:
@@ -149,8 +192,20 @@ public class Controller implements Initializable {
         }
     }
 
-    private void handleSystemUpdateUserList(Message msg) throws IOException, ClassNotFoundException {
-        int size = msg.getExData();
+    private void handleSystemUpdateUserList(Message msg) {
+        String[] loggedInUsers = msg.getData().split(",");
+        for (String username : loggedInUsers) {
+            if (username.equals(this.username)) {
+                continue;
+            }
+            if (!username.equals("")) {
+                userList.put(username, new User(username));
+            }
+        }
+    }
+
+    private void handleSystemUpdateOnlineUser(Message msg) throws IOException, ClassNotFoundException {
+        long size = msg.getExData();
         setCurrentOnlineCnt(size);
         System.out.println("Updated current online user!");
     }
@@ -165,13 +220,13 @@ public class Controller implements Initializable {
         return userName;
     }
 
-    public void addListRequest(String userName) throws IOException, ClassNotFoundException {
+    private void addListRequest(String userName) throws IOException, ClassNotFoundException {
         System.out.println("Send request for adding current login user to list");
         Message login = new Message(new User(userName), Constants.LOGIN_MESSAGE);
         sendSystemMessage(login);
     }
 
-    public boolean checkDupName(Optional<String> input) throws IOException, ClassNotFoundException {
+    private boolean checkDupName(Optional<String> input) throws IOException, ClassNotFoundException {
         System.out.println("Check if there is a user with the same name");
         Message getList = new Message(Constants.GET_USER_LIST);
         Message repeat = sendSystemMessage(getList);
@@ -183,16 +238,28 @@ public class Controller implements Initializable {
                 break;
             }
         }
-        if (!nameExists && !loggedInUsers[0].equals("")) {
-            setCurrentOnlineCnt(loggedInUsers.length + 1);
+        if (input.get().equals("")) {
+            nameExists = true;
         }
+        // get init resource from server: UserList
+        initializeResource(nameExists, loggedInUsers);
         return nameExists;
     }
 
-    public String handleLoginException(boolean nameExists, Optional<String> input,
+    private void initializeResource(boolean nameExists, String[] loggedInUsers) {
+        if (!nameExists && !loggedInUsers[0].equals("")) {
+            setCurrentOnlineCnt(loggedInUsers.length + 1);
+            for (String username : loggedInUsers) {
+                if (!username.equals("")) {
+                    userList.put(username, new User(username));
+                }
+            }
+        }
+    }
+    private String handleLoginException(boolean nameExists, Optional<String> input,
                                        URL url, ResourceBundle resourceBundle) {
         if (nameExists) {
-            System.out.println("Duplicate username! Please retry!");
+            System.out.println("Duplicate username or Invalid name! Please retry!");
             Alert alert = new Alert(Alert.AlertType.WARNING);
             alert.setTitle("Warning");
             alert.setHeaderText(null);
@@ -211,6 +278,11 @@ public class Controller implements Initializable {
         return (Message) in.readObject();
     }
 
+    private void sendMessage(Message msg) throws IOException, ClassNotFoundException {
+        out.writeObject(msg);
+        out.flush();
+    }
+
     private void setUsername(String username) {
         if (username != null) {
             currentUsername.setText("Current User: " + username);
@@ -218,20 +290,33 @@ public class Controller implements Initializable {
         }
     }
 
-    private void setCurrentOnlineCnt(int size) {
-        String num = Integer.toString(size);
+    private void setCurrentOnlineCnt(long size) {
+        String num = Long.toString(size);
         currentOnlineCnt.setText("Online: " + num);
     }
 
     @FXML
-    public void createPrivateChat() {
+    public void createPrivateChat() throws IOException, ClassNotFoundException {
+        // FIXME: get the user list from server, the current user's name should be filtered out
+        sendMessage(new Message(Constants.GET_USER_LIST));
+        long startTime = System.currentTimeMillis();
+        while (startTime + Constants.WAIT_FIVE_SECOND > System.currentTimeMillis()){
+            //loop wait....
+        }
+
+        List<User> list = new ArrayList<>();
+        for(String key : userList.keySet()) {
+            list.add(userList.get(key));
+        }
+
         AtomicReference<String> user = new AtomicReference<>();
 
         Stage stage = new Stage();
         ComboBox<String> userSel = new ComboBox<>();
-
-        // FIXME: get the user list from server, the current user's name should be filtered out
-        userSel.getItems().addAll("Item 1", "Item 2", "Item 3");
+        userSel.getItems().clear();
+        for (User u : list) {
+            userSel.getItems().add(u.getUsername()); // 添加用户到下拉列表中
+        }
 
         Button okBtn = new Button("OK");
         okBtn.setOnAction(e -> {
@@ -248,24 +333,30 @@ public class Controller implements Initializable {
 
         // TODO: if the current user already chatted with the selected user, just open the chat with that user
         // TODO: otherwise, create a new chat item in the left panel, the title should be the selected user's name
-        /*// Check if there is already a chat with the selected user
-        // TODO: get the list of chats from the server or local storage
-        List<Chat> chats = ChatClient.getChats();
+
+        // Check if there is already a chat with the selected user
+        List<Chat> chats = chatManager.getChatList();
         Optional<Chat> existingChat = chats.stream()
-                .filter(chat -> chat.getParticipants().contains(user.get()))
+                .filter(chat -> Objects.equals(chat.getFlag(), Constants.FLAG_PRIVATE))
+                .filter(chat -> chat.getParticipants()
+                        .stream().map(User::getUsername).collect(Collectors.toList())
+                        .contains(user.get()))
                 .findFirst();
         if (existingChat.isPresent()) {
-            // Open the existing chat
-            ChatController controller = existingChat.get().getController();
-            controller.show();
+            System.out.println("Open the existing chat");
+            MultipleSelectionModel<Chat> selectionModel = chatList.getSelectionModel();
+            selectionModel.select(existingChat.get());
         } else {
-            // Create a new chat item in the left panel
-            Chat newChat = new Chat(user.get());
-            // TODO: add the new chat to the list of chats
-            // for example: chats.add(newChat);
-            // TODO: update the chat list view in the UI
-            // for example: chatList.getItems().add(newChat);
-        }*/
+            System.out.println("Create a new chat item in the left panel");
+            List<User> participants = new ArrayList<>();
+            participants.add(new User(user.get()));
+            participants.add(new User(username));
+            Chat newChat = new Chat(participants, user.get(), Constants.FLAG_PRIVATE);
+            chats.add(newChat);
+            MultipleSelectionModel<Chat> selectionModel = chatList.getSelectionModel();
+            selectionModel.select(newChat);
+        }
+
     }
 
     /**
@@ -312,14 +403,15 @@ public class Controller implements Initializable {
         // for example: chatContentList.getItems().setAll(selectedChat.getMessages());
 
         // Clear the input field
-        messageInput.clear();*/
+        messageInput.clear();
+*/
     }
 
     /**
      * You may change the cell factory if you changed the design of {@code Message} model.
      * Hint: you may also define a cell factory for the chats displayed in the left panel, or simply override the toString method.
      */
-    private class MessageCellFactory implements Callback<ListView<Message>, ListCell<Message>> {
+    /*private class MessageCellFactory implements Callback<ListView<Message>, ListCell<Message>> {
         @Override
         public ListCell<Message> call(ListView<Message> param) {
             return new ListCell<Message>() {
@@ -354,5 +446,204 @@ public class Controller implements Initializable {
                 }
             };
         }
+    }*/
+    private class MessageCellFactory implements Callback<ListView<Message>, ListCell<Message>> {
+
+        @Override
+        public ListCell<Message> call(ListView<Message> param) {
+            return new ListCell<Message>() {
+
+                private final Label nameLabel = new Label();
+                private final Label msgLabel = new Label();
+                private final Label timeLabel = new Label();
+
+                @Override
+                public void updateItem(Message msg, boolean empty) {
+                    super.updateItem(msg, empty);
+                    if (empty || msg == null) {
+                        setGraphic(null);
+                        return;
+                    }
+
+                    nameLabel.setText(msg.getSentBy().getUsername());
+                    msgLabel.setText(msg.getData());
+                    timeLabel.setText(msg.getTimestamp().toString());
+
+                    HBox msgWrapper = new HBox();
+                    HBox timeWrapper = new HBox();
+                    VBox msgContainer = new VBox();
+                    VBox timeContainer = new VBox();
+                    StackPane msgStack = new StackPane();
+
+                    nameLabel.setPadding(new Insets(0, 0, 5, 0));
+                    nameLabel.setFont(Font.font(12));
+                    nameLabel.setTextFill(Color.DARKGRAY);
+
+                    msgLabel.setPadding(new Insets(0, 0, 5, 0));
+                    msgLabel.setWrapText(true);
+                    msgLabel.setFont(Font.font(14));
+
+                    timeLabel.setPadding(new Insets(0, 0, 5, 0));
+                    timeLabel.setFont(Font.font(10));
+                    timeLabel.setTextFill(Color.GRAY);
+
+                    msgStack.setAlignment(msg.getSentBy().getUsername().equals(username) ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+
+                    msgWrapper.getChildren().addAll(nameLabel, msgLabel);
+                    timeWrapper.getChildren().addAll(timeLabel);
+                    msgContainer.getChildren().addAll(msgWrapper, timeWrapper);
+                    timeContainer.getChildren().addAll(timeWrapper);
+
+                    if (msg.getSentBy().getUsername().equals(username)) {
+                        msgStack.getChildren().addAll(msgContainer);
+                        msgStack.getStyleClass().add("outgoing-bubble");
+                    } else {
+                        msgStack.getChildren().addAll(msgContainer);
+                        msgStack.getStyleClass().add("incoming-bubble");
+                    }
+
+                    msgContainer.getStyleClass().add("msg-container");
+                    timeContainer.getStyleClass().add("time-container");
+
+                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                    setGraphic(msgStack);
+                }
+            };
+        }
     }
+    /*private class ChatCellFactory implements Callback<ListView<Message>, ListCell<Message>> {
+        @Override
+        public ListCell<Message> call(ListView<Message> param) {
+            return new ListCell<Message>() {
+
+                @Override
+                public void updateItem(Message chat, boolean empty) {
+                    super.updateItem(chat, empty);
+                    if (empty || Objects.isNull(chat)) {
+                        return;
+                    }
+
+                    HBox wrapper = new HBox();
+                    Label nameLabel = new Label(chat.getChatName());
+                    Label msgLabel = new Label(chat.getMessages().get(chat.getMessages().size() - 1).getData());
+
+                    nameLabel.setPrefSize(50, 20);
+                    nameLabel.setWrapText(true);
+                    nameLabel.setStyle("-fx-border-color: black; -fx-border-width: 1px;");
+
+                    if (chat.getMessages().get(chat.getMessages().size() - 1).getSentBy().equals(username)) {
+                        wrapper.setAlignment(Pos.TOP_RIGHT);
+                        wrapper.getChildren().addAll(msgLabel, nameLabel);
+                        msgLabel.setPadding(new Insets(0, 20, 0, 0));
+                    } else {
+                        wrapper.setAlignment(Pos.TOP_LEFT);
+                        wrapper.getChildren().addAll(nameLabel, msgLabel);
+                        msgLabel.setPadding(new Insets(0, 0, 0, 20));
+                    }
+
+                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                    setGraphic(wrapper);
+                }
+            };
+        }
+    }*/
+
+    private class ChatListCellFactory implements Callback<ListView<Chat>, ListCell<Chat>> {
+        @Override
+        public ListCell<Chat> call(ListView<Chat> param) {
+            return new ListCell<Chat>() {
+                {
+                    setPrefWidth(0);
+                }
+
+                @Override
+                protected void updateItem(Chat chat, boolean empty) {
+                    super.updateItem(chat, empty);
+                    if (empty || chat == null) {
+                        setText(null);
+                        setGraphic(null);
+                    } else {
+                        //Create a HBox to hold the cells contents
+                        HBox hBox = new HBox();
+
+                        //Create an ImageView to display the chat's image
+                        ImageView imageView = new ImageView();
+                        imageView.setFitHeight(40);
+                        imageView.setFitWidth(40);
+                        imageView.setImage(new Image(Objects.requireNonNull(getClass().getResourceAsStream("chat.png"))));
+
+                        //Create a VBox to hold the chat's name and last message
+                        VBox vBox = new VBox();
+                        vBox.setPrefWidth(200);
+                        vBox.setAlignment(Pos.CENTER_LEFT);
+
+                        //Create a Label to display the chat's name
+                        Label nameLabel = new Label(chat.getChatName());
+                        nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+
+                        //Create a Label to display the last message in the chat
+                        Label lastMessageLabel = new Label();
+                        lastMessageLabel.setFont(Font.font("Arial", 12));
+
+                        //Get the last message in the chat
+                        List<Message> messages = chat.getMessages();
+                        if (!messages.isEmpty()) {
+                            Message lastMessage = messages.get(messages.size() - 1);
+
+                            //Set the last message text
+                            if (lastMessage.getType() == MessageType.MESSAGE) {
+                                if (lastMessage.getSentBy().getUsername().equals(username)) {
+                                    lastMessageLabel.setText("You: " + lastMessage.getData());
+                                } else {
+                                    lastMessageLabel.setText(lastMessage.getSentBy().getUsername() + ": " + lastMessage.getData());
+                                }
+                            } else {
+                                lastMessageLabel.setText(lastMessage.getData());
+                            }
+                        }
+
+                        //Add the labels to the VBox
+                        vBox.getChildren().addAll(nameLabel, lastMessageLabel);
+
+                        //Create a VBox to hold the chat's unread message count
+                        VBox unreadCountBox = new VBox();
+                        unreadCountBox.setPrefWidth(50);
+                        unreadCountBox.setAlignment(Pos.CENTER_RIGHT);
+
+                        //Create a Label to display the chat's unread message count
+                        Label unreadCountLabel = new Label("0");
+                        unreadCountLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+
+                        //Get the chat's unread message count
+                        int unreadCount = 0;
+                        for (Message message : messages) {
+                            if (message.getType() == MessageType.MESSAGE && !message.getSentBy().getUsername().equals(username)) {
+                                if (!message.isRead()) {
+                                    unreadCount++;
+                                }
+                            }
+                        }
+
+                        //Set the unread message count
+                        if (unreadCount > 0) {
+                            unreadCountLabel.setText(Integer.toString(unreadCount));
+                            unreadCountLabel.setTextFill(Color.WHITE);
+                            Circle circle = new Circle(10);
+                            circle.setFill(Color.RED);
+                            unreadCountBox.getChildren().add(circle);
+                            unreadCountBox.getChildren().add(unreadCountLabel);
+                        }
+
+                        //Add the image view, VBoxes, and unread message count to the HBox
+                        hBox.getChildren().addAll(imageView, vBox, unreadCountBox);
+
+                        //Set the HBox as the cell's graphic
+                        setGraphic(hBox);
+                    }
+                }
+            };
+        }
+    }
+
+
 }

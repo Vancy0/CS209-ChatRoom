@@ -16,7 +16,6 @@ public class ChatServer {
     private ServerSocket serverSocket;
     private List<ClientHandler> clientHandlers;
     private final List<User> userList = new ArrayList<>();
-    private final List<Chat> chatList = new ArrayList<>();
 
     public ChatServer(int port) {
         this.port = port;

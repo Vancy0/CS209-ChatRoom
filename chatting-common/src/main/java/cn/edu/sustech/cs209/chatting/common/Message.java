@@ -14,8 +14,13 @@ public class Message implements Serializable {
 
     private String data;
 
-    private int exData;
+    private long exData;
+
     private MessageType type = MessageType.SYSTEM;
+
+    private boolean isRead = false;
+
+    private int systemType = Constants.NONE;
 
     //chat message
     public Message(Long timestamp, User sentBy, User sendTo, String data, MessageType type) {
@@ -36,11 +41,21 @@ public class Message implements Serializable {
         this.data = content;
     }
 
-    public Message(String content, int exData) {
+    public Message(String content, int systemType) {
+        this.data = content;
+        this.systemType = systemType;
+    }
+
+    public Message(String content, long exData) {
         this.data = content;
         this.exData = exData;
     }
 
+    public Message(String content, long exData, int systemType) {
+        this.data = content;
+        this.exData = exData;
+        this.systemType = systemType;
+    }
     public Long getTimestamp() {
         return timestamp;
     }
@@ -61,8 +76,20 @@ public class Message implements Serializable {
         return type;
     }
 
-    public int getExData() {
+    public long getExData() {
         return exData;
+    }
+
+    public int getSystemType() {
+        return systemType;
+    }
+
+    public boolean isRead() {
+        return isRead;
+    }
+
+    public void setRead(boolean read) {
+        isRead = read;
     }
 
     public String toString() {

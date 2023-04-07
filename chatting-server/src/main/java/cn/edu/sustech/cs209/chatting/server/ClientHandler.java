@@ -87,6 +87,12 @@ public class ClientHandler implements Runnable {
     }
 
     private void handleSystemGetUserList() throws IOException {
+        sendMessage(createUserList());
+        System.out.println("Have sent user list to Client");
+
+    }
+
+    private Message createUserList() {
         StringBuilder contentBuffer = new StringBuilder();
         List<User> loginUsers = chatServer.getLoggedInUsers();
         for (int i = 0; i < loginUsers.size(); i++) {
@@ -96,9 +102,8 @@ public class ClientHandler implements Runnable {
             }
         }
         String content = contentBuffer.toString();
-        sendMessage(new Message(content));
-        System.out.println("Have sent user list to Client");
         System.out.println("User list length is: " + loginUsers.size());
+        return new Message(content, Constants.REPLAY_USER_LIST);
     }
 
     private void handleSystemLogin(Message msg) throws IOException {
@@ -106,12 +111,15 @@ public class ClientHandler implements Runnable {
         chatServer.addUser(sendBy);
         //after login set the user
         user = sendBy;
+        // not important
         sendMessage(new Message(Constants.USER_LIST_ADDED));
         System.out.println("Have sent verification for add list to Client");
+
         //broadcast for update number of online user
         chatServer.broadcast(this, new Message(Constants.UPDATE_USER_LIST,
-                chatServer.getLoggedInUsers().size()));
+                chatServer.getLoggedInUsers().size(), Constants.REPLAY_ONLINE_USER_NUM));
         System.out.println("broadcast for update number of online user");
+        chatServer.broadcast(this, createUserList());
     }
 
     private void handleConnectMessage(Message msg) throws IOException {
