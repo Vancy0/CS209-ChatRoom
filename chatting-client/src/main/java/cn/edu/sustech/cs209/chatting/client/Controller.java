@@ -1,7 +1,6 @@
 package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.*;
-import cn.edu.sustech.cs209.chatting.server.ChatServer;
 import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -14,7 +13,6 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -30,7 +28,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.URL;
-import java.sql.SQLOutput;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -300,7 +297,7 @@ public class Controller implements Initializable {
         // FIXME: get the user list from server, the current user's name should be filtered out
         sendMessage(new Message(Constants.GET_USER_LIST));
         long startTime = System.currentTimeMillis();
-        while (startTime + Constants.WAIT_FIVE_SECOND > System.currentTimeMillis()){
+        while (startTime + Constants.WAIT_HALF_ONE_SECOND > System.currentTimeMillis()){
             //loop wait....
         }
 
@@ -336,26 +333,36 @@ public class Controller implements Initializable {
 
         // Check if there is already a chat with the selected user
         List<Chat> chats = chatManager.getChatList();
+        for (int i = 0; i < chats.size(); i++) {
+            System.out.println(chats.get(i).getChatName());
+        }
         Optional<Chat> existingChat = chats.stream()
                 .filter(chat -> Objects.equals(chat.getFlag(), Constants.FLAG_PRIVATE))
                 .filter(chat -> chat.getParticipants()
                         .stream().map(User::getUsername).collect(Collectors.toList())
                         .contains(user.get()))
                 .findFirst();
-        if (existingChat.isPresent()) {
-            System.out.println("Open the existing chat");
-            MultipleSelectionModel<Chat> selectionModel = chatList.getSelectionModel();
-            selectionModel.select(existingChat.get());
-        } else {
-            System.out.println("Create a new chat item in the left panel");
-            List<User> participants = new ArrayList<>();
-            participants.add(new User(user.get()));
-            participants.add(new User(username));
-            Chat newChat = new Chat(participants, user.get(), Constants.FLAG_PRIVATE);
-            chats.add(newChat);
-            MultipleSelectionModel<Chat> selectionModel = chatList.getSelectionModel();
-            selectionModel.select(newChat);
+
+        //have chose something in the box
+        if (!userSel.getItems().isEmpty() && userSel.getValue() != null) {
+            if (existingChat.isPresent()) {
+                System.out.println("Open the existing chat");
+                MultipleSelectionModel<Chat> selectionModel = chatList.getSelectionModel();
+                selectionModel.select(existingChat.get());
+            } else {
+                System.out.println("Create a new chat item in the left panel");
+                List<User> participants = new ArrayList<>();
+                participants.add(new User(user.get()));
+                participants.add(new User(username));
+                Chat newChat = new Chat(participants, user.get(), Constants.FLAG_PRIVATE);
+                chatManager.getChatList().add(newChat);
+                //this.chats.add(newChat);
+                chatList.getItems().add(newChat);
+                MultipleSelectionModel<Chat> selectionModel = chatList.getSelectionModel();
+                selectionModel.select(newChat);
+            }
         }
+
 
     }
 
@@ -570,7 +577,7 @@ public class Controller implements Initializable {
                         ImageView imageView = new ImageView();
                         imageView.setFitHeight(40);
                         imageView.setFitWidth(40);
-                        imageView.setImage(new Image(Objects.requireNonNull(getClass().getResourceAsStream("chat.png"))));
+                        imageView.setImage(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/images/chat.png"))));
 
                         //Create a VBox to hold the chat's name and last message
                         VBox vBox = new VBox();

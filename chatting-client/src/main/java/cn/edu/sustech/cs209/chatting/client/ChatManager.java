@@ -7,9 +7,13 @@ import java.util.List;
 
 @SuppressWarnings({"checkstyle:MissingJavadocType", "checkstyle:Indentation"})
 public class ChatManager {
-    private final List<Chat> chatList = new ArrayList<>();
+    List<Chat> chatList = new ArrayList<>();
 
     public List<Chat> getChatList() {
         return chatList;
+    }
+
+    public void setChatList(List<Chat> chatList) {
+        this.chatList = chatList;
     }
 }
