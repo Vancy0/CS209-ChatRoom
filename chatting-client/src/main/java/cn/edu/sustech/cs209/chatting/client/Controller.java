@@ -56,7 +56,6 @@ public class Controller implements Initializable {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-
         Dialog<String> dialog = new TextInputDialog();
         dialog.setTitle("Login");
         dialog.setHeaderText(null);
@@ -261,6 +260,7 @@ public class Controller implements Initializable {
     }
 
     private void handleSystemUpdateUserList(Message msg) {
+        userList.clear();
         String[] loggedInUsers = msg.getData().split(",");
         for (String username : loggedInUsers) {
             if (username.equals(this.username)) {
@@ -492,6 +492,18 @@ public class Controller implements Initializable {
         inputArea.clear();
     }
 
+    public void closeSocket() {
+        System.out.println("Close Socket....");
+        try {
+            if (socket != null && !socket.isClosed()) {
+                System.out.println("Socket Exist and now closing!");
+                socket.close();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     /**
      * You may change the cell factory if you changed the design of {@code Message} model.
      * Hint: you may also define a cell factory for the chats displayed in the left panel, or simply override the toString method.
@@ -669,31 +681,35 @@ public class Controller implements Initializable {
         }
     }
 
+    //<Button text="😊" onAction="#addEmoji1"/>
     @FXML
     private void addEmoji1(ActionEvent event) {
         // 将 Unicode 编码的表情添加到输入框中
         inputArea.appendText("\uD83D\uDE0A");
     }
 
+    //<Button text="😂" onAction="#addEmoji2"/>
     @FXML
     private void addEmoji2(ActionEvent event) {
         // 将 Unicode 编码的表情添加到输入框中
         inputArea.appendText("\uD83D\uDE02");
     }
 
-
+    //<Button text="🤣" onAction="#addEmoji4"/>
     @FXML
     private void addEmoji4(ActionEvent event) {
         // 将 Unicode 编码的表情添加到输入框中
         inputArea.appendText("\uD83E\uDD23");
     }
 
+    //<Button text="😭" onAction="#addEmoji5"/>
     @FXML
     private void addEmoji5(ActionEvent event) {
         // 将 Unicode 编码的表情添加到输入框中
         inputArea.appendText("\uD83D\uDE2D");
     }
 
+    //<Button text="😅" onAction="#addEmoji6"/>
     @FXML
     private void addEmoji6(ActionEvent event) {
         // 将 Unicode 编码的表情添加到输入框中
