@@ -1,7 +1,6 @@
 package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.Chat;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,6 +10,10 @@ public class ChatManager {
 
     public List<Chat> getChatList() {
         return chatList;
+    }
+
+    public void addChat(Chat chat) {
+        this.chatList.add(chat);
     }
 
     public void setChatList(List<Chat> chatList) {

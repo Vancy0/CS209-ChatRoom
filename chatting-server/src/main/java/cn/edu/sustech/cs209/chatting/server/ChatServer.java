@@ -41,7 +41,7 @@ public class ChatServer {
     public void sendOne(Message msg) throws IOException {
         User sendTo = msg.getSendTo();
         for (ClientHandler client : clientHandlers) {
-            if (client.getUser() == sendTo) {
+            if (client.getUser().getUsername().equals(sendTo.getUsername())) {
                 client.sendMessage(msg);
                 break;
             }
