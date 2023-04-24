@@ -13,6 +13,7 @@ public class Constants implements Serializable {
     public static final String USER_LIST_ADDED = "USER_LIST_ADDED";
     public static final String UPDATE_USER_LIST = "UPDATE_USER_LIST";
     public static final String CLIENT_ACK = "CLIENT_ACK";
+    public static final String CLIENT_CLOSE = "CLIENT_CLOSE";
     public static final int NONE = 0;
     public static final int REPLAY_USER_LIST = 1;
     public static final int REPLAY_ONLINE_USER_NUM = 2;

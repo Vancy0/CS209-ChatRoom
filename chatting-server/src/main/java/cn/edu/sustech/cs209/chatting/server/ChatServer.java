@@ -48,6 +48,22 @@ public class ChatServer {
         }
     }
 
+    public void sendGroup(ClientHandler clientHandler, Message msg) throws IOException {
+        List<User> users = msg.group;
+        for (User u : users) {
+            if (u.getUsername().equals(clientHandler.getUser().getUsername())) {
+                continue;
+            }
+            for (ClientHandler client : clientHandlers) {
+                if (client.getUser().getUsername().equals(u.getUsername())) {
+                    client.sendMessage(msg);
+                    break;
+                }
+            }
+        }
+
+    }
+
     public void broadcast(Message msg) throws IOException {
         for (ClientHandler client : clientHandlers) {
             client.sendMessage(msg);

@@ -12,6 +12,9 @@ public class User implements Serializable {
     }
 
     public String getUsername() {
+        if (username == null) {
+            return "null";
+        }
         return username;
     }
 

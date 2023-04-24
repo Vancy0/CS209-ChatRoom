@@ -2,6 +2,7 @@ package cn.edu.sustech.cs209.chatting.common;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @SuppressWarnings({"checkstyle:Indentation", "checkstyle:MissingJavadocMethod"})
 public class Message implements Serializable {
@@ -11,6 +12,8 @@ public class Message implements Serializable {
     private User sentBy;
 
     private User sendTo;
+
+    public List<User> group;
 
     private String data;
 
@@ -29,6 +32,16 @@ public class Message implements Serializable {
         this.sendTo = sendTo;
         this.data = data;
         this.type = type;
+    }
+
+    public Message(Long timestamp, User sentBy, User sendTo, String data, int hashCode, MessageType type, List<User> group) {
+        this.timestamp = timestamp;
+        this.sentBy = sentBy;
+        this.sendTo = sendTo;
+        this.data = data;
+        this.type = type;
+        this.exData = hashCode;
+        this.group = group;
     }
 
     //system messages
@@ -93,6 +106,13 @@ public class Message implements Serializable {
     }
 
     public String toString() {
+        if (sendTo == null) {
+            return "Msg{" +
+                    "time='" + timestamp + '\'' +
+                    "sendBy='" + sentBy.getUsername() + '\'' +
+                    "type='" + type + '\'' +
+                    '}';
+        }
         return "Msg{" +
                 "time='" + timestamp + '\'' +
                 "sendBy='" + sentBy.getUsername() + '\'' +

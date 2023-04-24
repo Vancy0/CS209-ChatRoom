@@ -49,6 +49,7 @@
         </Label>
         <Pane HBox.hgrow="ALWAYS"/>
         <Label fx:id="currentOnlineCnt" font="$x3" text="Online: 1" textFill="$x4" HBox.hgrow="NEVER"/>
+        <Label fx:id="status" font="$x3" text="Status: Connecting!" textFill="$x4" HBox.hgrow="NEVER"/>
         <Button text="😊" onAction="#addEmoji1"/>
         <Button text="😂" onAction="#addEmoji2"/>
         <Button text="🤣" onAction="#addEmoji4"/>

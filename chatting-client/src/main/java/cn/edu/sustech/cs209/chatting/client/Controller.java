@@ -16,6 +16,8 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
@@ -46,6 +48,8 @@ public class Controller implements Initializable {
     private Label currentUsername;
     @FXML
     private Label currentOnlineCnt;
+    @FXML
+    private Label status;
     private final BlockingQueue<Message> messageQueue = new LinkedBlockingQueue<>();
     private final ChatManager chatManager = new ChatManager();
     private final HashMap<String, User> userList = new HashMap<>();
@@ -53,6 +57,7 @@ public class Controller implements Initializable {
     Socket socket;
     ObjectOutputStream out;
     ObjectInputStream in;
+    public boolean isClose = false;
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
@@ -75,7 +80,7 @@ public class Controller implements Initializable {
                 //symbol of connected
                 setUsername(username);
             } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
+                Platform.runLater(this::setConnection);
             }
         } else {
             System.out.println("Invalid username " + input + ", exiting");
@@ -90,6 +95,7 @@ public class Controller implements Initializable {
                         // 渲染右侧聊天框中的聊天记录
                         System.out.println("render chat! name is: " + newValue.getChatName());
                         renderChat(newValue);
+                        chatList.refresh();
                     }
                 });
 
@@ -134,6 +140,7 @@ public class Controller implements Initializable {
         List<Message> messageList = chat.getMessages();
         for (Message msg : messageList) {
             System.out.println(msg.getSentBy() + " said: " + msg.getData());
+            msg.setRead(true);
         }
         contentItems.clear();
         chatContentList.requestFocus();
@@ -155,6 +162,7 @@ public class Controller implements Initializable {
                         // handle received msg
                         System.out.println("UI update!!!");
                         handleMessage(msg);
+                        chatList.refresh();
                     } catch (IOException | ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
@@ -177,9 +185,10 @@ public class Controller implements Initializable {
                         messageQueue.put(msg);
                     }
                 } catch (IOException | ClassNotFoundException e) {
-                    e.printStackTrace();
+                    Platform.runLater(this::setConnection);
                     break;
                 } catch (InterruptedException e) {
+                    Platform.runLater(this::setConnection);
                     throw new RuntimeException(e);
                 }
             }
@@ -230,17 +239,64 @@ public class Controller implements Initializable {
             }
         } else {
             //group
-
+            List<Chat> chats = chatManager.getChatList();
+            Optional<Chat> targetChat = chats.stream()
+                    .filter(c -> c.getFlag().equals(Constants.FLAG_GROUP))
+                    .filter(c -> c.getHashCode() == msg.getExData())
+                    .findFirst();
+            if (targetChat.isPresent()) {
+                // directly add message
+                System.out.println("New Message with exist chat!");
+                targetChat.get().addMessage(msg);
+                refreshContent(targetChat.get());
+            } else {
+                // create new chat and add message
+                System.out.println("New Message with none exist chat!");
+                List<String> selectedUsers = msg.group.stream()
+                        .map(User::getUsername).collect(Collectors.toList());
+                // sort the list of username
+                Collections.sort(selectedUsers);
+                int numUsers = selectedUsers.size();
+                System.out.println("Select number of user is: " + numUsers);
+                String chatTitle;
+                if (numUsers <= 3) {
+                    chatTitle = String.join(", ", selectedUsers) + " (" + numUsers + ")";
+                } else {
+                    List<String> firstThreeUsers = selectedUsers.subList(0, 3);
+                    chatTitle = String.join(", ", firstThreeUsers) + "... (" + numUsers + ")";
+                }
+                // Create the new group chat with the given title and users
+                //createChat(chatTitle, selectedUsers);
+                List<User> participants = new ArrayList<>();
+                for (String name : selectedUsers) {
+                    participants.add(new User(name));
+                }
+                Chat newChat = new Chat(participants, chatTitle, Constants.FLAG_GROUP);
+                chatManager.addChat(newChat);
+                chatItems.add(newChat);
+                //add user list
+                StringBuilder userList = new StringBuilder();
+                userList.append("Chat Members: ");
+                for (int i = 0; i < selectedUsers.size(); i++) {
+                    String name = selectedUsers.get(i);
+                    userList.append("{");
+                    userList.append(name);
+                    userList.append("}");
+                    if (i != selectedUsers.size() - 1) {
+                        userList.append(",\n");
+                    }
+                }
+                Message notify = new Message(new User("SERVER"), userList.toString());
+                newChat.addMessage(notify);
+                newChat.addMessage(msg);
+            }
         }
-
-
     }
 
     private void refreshContent(Chat target) {
         Chat selectedChat = chatList.getSelectionModel().getSelectedItem();
         if (selectedChat == target) {
             System.out.println("Refresh current content!");
-            System.out.println(Platform.isFxApplicationThread());
             renderChat(target);
         }
     }
@@ -364,6 +420,11 @@ public class Controller implements Initializable {
         currentOnlineCnt.setText("Online: " + num);
     }
 
+    private void setConnection() {
+        isClose = true;
+        status.setText("Status: Server shut down");
+    }
+
     @FXML
     public void createPrivateChat() throws IOException, ClassNotFoundException {
         // FIXME: get the user list from server, the current user's name should be filtered out
@@ -445,6 +506,104 @@ public class Controller implements Initializable {
      */
     @FXML
     public void createGroupChat() {
+        // Create a new dialog for selecting users
+        Dialog<List<String>> dialog = new Dialog<>();
+        dialog.setTitle("Create Group Chat");
+        dialog.setHeaderText("Select users for the group chat:");
+
+        List<User> list = new ArrayList<>();
+        for (String key : userList.keySet()) {
+            list.add(userList.get(key));
+        }
+
+        // Create a list view with all users' names
+        ListView<String> listView = new ListView<>();
+        listView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+
+        listView.getItems().clear();
+        for (User u : list) {
+            if (!u.getUsername().equals(this.username)) {
+                listView.getItems().add(u.getUsername());
+            }
+        }
+
+        // Add the list view to the dialog
+        dialog.getDialogPane().setContent(listView);
+
+        // Add OK and Cancel buttons to the dialog
+        ButtonType buttonTypeOk = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+        ButtonType buttonTypeCancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(buttonTypeOk, buttonTypeCancel);
+
+        // Convert the result to a list of selected usernames, sorted in lexicographic order
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == buttonTypeOk) {
+                List<String> selectedUsers = new ArrayList<>(listView.getSelectionModel().getSelectedItems());
+                //Collections.sort(selectedUsers);
+                return selectedUsers;
+            }
+            return null;
+        });
+
+        // Show the dialog and get the result
+        Optional<List<String>> result = dialog.showAndWait();
+        if (listView.getItems().isEmpty()) {
+            return;
+        }
+
+        // If the OK button was clicked, create a new group chat with the selected users
+        result.ifPresent(selectedUsers -> {
+            //add self to the group chat
+            selectedUsers.add(this.username);
+            if (selectedUsers.size() == 1) {
+                return;
+            }
+            // sort the list of username
+            Collections.sort(selectedUsers);
+            int numUsers = selectedUsers.size();
+            System.out.println("Select number of user is: " + numUsers);
+            String chatTitle;
+            if (numUsers <= 3) {
+                chatTitle = String.join(", ", selectedUsers) + " (" + numUsers + ")";
+            } else {
+                List<String> firstThreeUsers = selectedUsers.subList(0, 3);
+                chatTitle = String.join(", ", firstThreeUsers) + "... (" + numUsers + ")";
+            }
+            // Create the new group chat with the given title and users
+            //createChat(chatTitle, selectedUsers);
+            List<User> participants = new ArrayList<>();
+            for (String name : selectedUsers) {
+                participants.add(new User(name));
+            }
+            Chat newChat = new Chat(participants, chatTitle, Constants.FLAG_GROUP);
+            List<Chat> chats = chatManager.getChatList();
+            for (Chat c : chats) {
+                if (!c.getFlag().equals(Constants.FLAG_GROUP)) {
+                    continue;
+                }
+                if (c.getHashCode() == newChat.getHashCode()) {
+                    switchChat(c);
+                    return;
+                }
+            }
+
+            chatManager.addChat(newChat);
+            chatItems.add(newChat);
+            StringBuilder userList = new StringBuilder();
+            userList.append("Chat Members: ");
+            for (int i = 0; i < selectedUsers.size(); i++) {
+                String name = selectedUsers.get(i);
+                userList.append("{");
+                userList.append(name);
+                userList.append("}");
+                if (i != selectedUsers.size() - 1) {
+                    userList.append(",\n");
+                }
+            }
+            Message notify = new Message(new User("SERVER"), userList.toString());
+            newChat.addMessage(notify);
+            switchChat(newChat);
+        });
     }
 
     /**
@@ -469,6 +628,7 @@ public class Controller implements Initializable {
         // Send the message to the server
         Message msg = null;
         if (selectedChat.getFlag().equals(Constants.FLAG_PRIVATE)) {
+            System.out.println("Send msg in private chat!");
             User sendTo = null;
             for (int i = 0; i < selectedChat.getParticipants().size(); i++) {
                 if (!selectedChat.getParticipants().get(i).getUsername().equals(username)) {
@@ -479,8 +639,10 @@ public class Controller implements Initializable {
             msg = new Message(System.currentTimeMillis(), new User(username),
                     sendTo, text, MessageType.MESSAGE);
         } else {
+            System.out.println("Send msg in group chat!!!");
             msg = new Message(System.currentTimeMillis(), new User(username),
-                    null, text, MessageType.MESSAGE);
+                    null, text, selectedChat.getHashCode(), MessageType.MESSAGE,
+                    selectedChat.getParticipants());
         }
         // send the message to the server
         sendMessage(msg);
@@ -490,6 +652,11 @@ public class Controller implements Initializable {
         renderChat(selectedChat);
         // Clear the input field
         inputArea.clear();
+    }
+
+    public void sendCloseMsg() throws IOException, ClassNotFoundException {
+        Message msg = new Message(Constants.CLIENT_CLOSE);
+        sendMessage(msg);
     }
 
     public void closeSocket() {
@@ -617,27 +784,6 @@ public class Controller implements Initializable {
                         Label nameLabel = new Label(chat.getChatName());
                         nameLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
 
-                        /*//Create a Label to display the last message in the chat
-                        Label lastMessageLabel = new Label();
-                        lastMessageLabel.setFont(Font.font("Arial", 12));
-
-                        //Get the last message in the chat
-                        List<Message> messages = chat.getMessages();
-                        if (!messages.isEmpty()) {
-                            Message lastMessage = messages.get(messages.size() - 1);
-
-                            //Set the last message text
-                            if (lastMessage.getType() == MessageType.MESSAGE) {
-                                if (lastMessage.getSentBy().getUsername().equals(username)) {
-                                    lastMessageLabel.setText("You: " + lastMessage.getData());
-                                } else {
-                                    lastMessageLabel.setText(lastMessage.getSentBy().getUsername() + ": " + lastMessage.getData());
-                                }
-                            } else {
-                                lastMessageLabel.setText(lastMessage.getData());
-                            }
-                        }*/
-
                         //Add the labels to the VBox
                         vBox.getChildren().addAll(nameLabel);
 
@@ -647,28 +793,28 @@ public class Controller implements Initializable {
                         unreadCountBox.setAlignment(Pos.CENTER_RIGHT);
 
                         //Create a Label to display the chat's unread message count
-                        Label unreadCountLabel = new Label("0");
-                        unreadCountLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+//                        Label unreadCountLabel = new Label("0");
+//                        unreadCountLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
 
-/*                        //Get the chat's unread message count
+                        //Get the chat's unread message count
                         int unreadCount = 0;
+                        List<Message> messages = chat.getMessages();
                         for (Message message : messages) {
                             if (message.getType() == MessageType.MESSAGE && !message.getSentBy().getUsername().equals(username)) {
                                 if (!message.isRead()) {
                                     unreadCount++;
                                 }
                             }
-                        }*/
-/*
+                        }
                         //Set the unread message count
                         if (unreadCount > 0) {
-                            unreadCountLabel.setText(Integer.toString(unreadCount));
-                            unreadCountLabel.setTextFill(Color.WHITE);
+//                            unreadCountLabel.setText(Integer.toString(unreadCount));
+//                            unreadCountLabel.setTextFill(Color.WHITE);
                             Circle circle = new Circle(10);
                             circle.setFill(Color.RED);
                             unreadCountBox.getChildren().add(circle);
-                            unreadCountBox.getChildren().add(unreadCountLabel);
-                        }*/
+//                            unreadCountBox.getChildren().add(unreadCountLabel);
+                        }
 
                         //Add the image view, VBoxes, and unread message count to the HBox
                         hBox.getChildren().addAll(imageView, vBox, unreadCountBox);

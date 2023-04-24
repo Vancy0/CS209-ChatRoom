@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.sql.SQLOutput;
 import java.util.List;
 
 
@@ -36,12 +37,13 @@ public class ClientHandler implements Runnable {
                 handleMessage(msg);
             }
         } catch (IOException | ClassNotFoundException e) {
-            e.printStackTrace();
+            System.out.println("Shut down!");
         } finally {
             try {
                 if (user != null) {
                     System.out.println("Shut down connection!");
                     chatServer.removeUser(user);
+                    System.out.println(chatServer.getLoggedInUsers());
                     chatServer.removeThread(this);
                 }
                 input.close();
@@ -81,6 +83,9 @@ public class ClientHandler implements Runnable {
             case Constants.LOGIN_MESSAGE:
                 handleSystemLogin(msg);
                 break;
+            case Constants.CLIENT_CLOSE:
+                handleClientClose(msg);
+                break;
             default:
                 break;
         }
@@ -90,6 +95,22 @@ public class ClientHandler implements Runnable {
         sendMessage(createUserList());
         System.out.println("Have sent user list to Client");
 
+    }
+    private Message createCloseUserList() {
+        StringBuilder contentBuffer = new StringBuilder();
+        List<User> loginUsers = chatServer.getLoggedInUsers();
+        for (int i = 0; i < loginUsers.size(); i++) {
+            if (loginUsers.get(i).getUsername().equals(this.user.getUsername())) {
+                continue;
+            }
+            contentBuffer.append(loginUsers.get(i).getUsername());
+            if (i != loginUsers.size() - 1) {
+                contentBuffer.append(",");
+            }
+        }
+        String content = contentBuffer.toString();
+        System.out.println("User list length is: " + loginUsers.size());
+        return new Message(content, Constants.REPLAY_USER_LIST);
     }
 
     private Message createUserList() {
@@ -122,6 +143,14 @@ public class ClientHandler implements Runnable {
         chatServer.broadcast(this, createUserList());
     }
 
+    private void handleClientClose(Message msg) throws IOException {
+        //broadcast for update number of online user
+        chatServer.broadcast(this, new Message(Constants.UPDATE_USER_LIST,
+                chatServer.getLoggedInUsers().size() - 1, Constants.REPLAY_ONLINE_USER_NUM));
+        System.out.println("broadcast for update number of online user");
+        chatServer.broadcast(this, createCloseUserList());
+    }
+
     private void handleConnectMessage(Message msg) throws IOException {
         user = msg.getSentBy();
         chatServer.addUser(user);
@@ -131,7 +160,7 @@ public class ClientHandler implements Runnable {
 
     private void handleMessageMessage(Message msg) throws IOException {
         if (msg.getSendTo() == null) {
-            chatServer.broadcast(msg);
+            chatServer.sendGroup(this, msg);
         } else {
             chatServer.sendOne(msg);
         }

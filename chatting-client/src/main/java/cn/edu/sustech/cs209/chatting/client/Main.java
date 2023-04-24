@@ -23,6 +23,13 @@ public class Main extends Application {
         Controller controller = fxmlLoader.getController();
         stage.setOnCloseRequest(event -> {
             System.out.println("Closing application...");
+            try {
+                if (!controller.isClose) {
+                    controller.sendCloseMsg();
+                }
+            } catch (IOException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
             controller.closeSocket();
         });
         stage.setTitle("Chatting Client");
