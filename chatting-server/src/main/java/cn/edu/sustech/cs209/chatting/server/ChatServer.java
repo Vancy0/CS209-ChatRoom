@@ -78,6 +78,7 @@ public class ChatServer {
             }
         }
     }
+
     public void removeThread(ClientHandler clientHandler) {
         clientHandlers.remove(clientHandler);
     }

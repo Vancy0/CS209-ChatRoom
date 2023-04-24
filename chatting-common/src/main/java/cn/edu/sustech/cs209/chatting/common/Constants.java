@@ -2,6 +2,7 @@ package cn.edu.sustech.cs209.chatting.common;
 
 import java.io.Serializable;
 
+@SuppressWarnings("checkstyle:MissingJavadocType")
 public class Constants implements Serializable {
     public static final int WAIT_HALF_ONE_SECOND = 500;
     public static final int WAIT_ONE_SECOND = 1000;
